@@ -1,0 +1,14 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+  background: radial-gradient(circle at top, #0f1b3d, #060b18 60%);
+  color: #f1f5f9;
+}

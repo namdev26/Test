@@ -1,0 +1,226 @@
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  description: |
+    Xử lý thanh toán booking.
+    Tạo payment transaction, tích hợp gateway bên ngoài, nhận callback kết quả.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5005
+    description: Local Docker
+
+tags:
+  - name: payments
+    description: Xử lý giao dịch thanh toán
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service đang hoạt động
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /payments:
+    post:
+      tags: [payments]
+      summary: Khởi tạo thanh toán
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePaymentRequest"
+      responses:
+        "201":
+          description: Khởi tạo thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Yêu cầu trùng idempotency key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /payments/{id}:
+    get:
+      tags: [payments]
+      summary: Lấy trạng thái thanh toán
+      parameters:
+        - $ref: "#/components/parameters/PaymentId"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /payments/callback:
+    post:
+      tags: [payments]
+      summary: Callback từ Payment Gateway
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentCallbackRequest"
+      responses:
+        "200":
+          description: Callback đã được tiếp nhận
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      payment_id:
+                        type: integer
+                        example: 501
+                      status:
+                        type: string
+                        example: SUCCESS
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  parameters:
+    PaymentId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: 550e8400-e29b-41d4-a716-446655440000
+
+  schemas:
+    CreatePaymentRequest:
+      type: object
+      required: [booking_id, amount, card_number, card_expiry, card_cvv, card_holder]
+      properties:
+        booking_id:
+          type: integer
+          example: 201
+        amount:
+          type: integer
+          example: 190000
+        card_number:
+          type: string
+          example: "4111111111111111"
+          description: Forward sang gateway, không lưu dạng plaintext
+        card_expiry:
+          type: string
+          example: "12/27"
+        card_cvv:
+          type: string
+          example: "123"
+        card_holder:
+          type: string
+          example: NGUYEN VAN A
+
+    PaymentCallbackRequest:
+      type: object
+      required: [gateway_ref, status, booking_id]
+      properties:
+        gateway_ref:
+          type: string
+          example: GW-999888777
+        status:
+          type: string
+          enum: [SUCCESS, FAILED]
+        booking_id:
+          type: integer
+          example: 201
+        failure_reason:
+          type: string
+          example: INSUFFICIENT_FUNDS
+
+    PaymentResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            payment_id:
+              type: integer
+              example: 501
+            booking_id:
+              type: integer
+              example: 201
+            amount:
+              type: integer
+              example: 190000
+            status:
+              type: string
+              example: PENDING
+            gateway_ref:
+              type: string
+              example: GW-999888777
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+  responses:
+    BadRequest:
+      description: Dữ liệu đầu vào không hợp lệ
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Không tìm thấy dữ liệu
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Lỗi server nội bộ
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

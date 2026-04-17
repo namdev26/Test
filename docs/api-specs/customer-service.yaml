@@ -1,0 +1,183 @@
+openapi: 3.0.3
+info:
+  title: Customer Service API
+  description: |
+    Quản lý thông tin khách hàng.
+    Cung cấp API tạo mới, tra cứu theo id, tra cứu theo email.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5001
+    description: Local Docker
+
+tags:
+  - name: customers
+    description: Quản lý hồ sơ khách hàng
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service đang hoạt động
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /customers:
+    post:
+      tags: [customers]
+      summary: Tạo mới khách hàng
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomerRequest"
+      responses:
+        "201":
+          description: Tạo khách hàng thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Email đã tồn tại
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /customers/{id}:
+    get:
+      tags: [customers]
+      summary: Lấy thông tin khách hàng theo id
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /customers/by-email:
+    get:
+      tags: [customers]
+      summary: Tìm khách hàng theo email
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  parameters:
+    CustomerId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+  schemas:
+    CreateCustomerRequest:
+      type: object
+      required: [name, email, phone]
+      properties:
+        name:
+          type: string
+          example: Nguyen Van A
+        email:
+          type: string
+          format: email
+          example: a@gmail.com
+        phone:
+          type: string
+          example: "0901234567"
+
+    CustomerResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 101
+            name:
+              type: string
+              example: Nguyen Van A
+            email:
+              type: string
+              format: email
+              example: a@gmail.com
+            phone:
+              type: string
+              example: "0901234567"
+            created_at:
+              type: string
+              format: date-time
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+  responses:
+    BadRequest:
+      description: Dữ liệu đầu vào không hợp lệ
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Không tìm thấy dữ liệu
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Lỗi server nội bộ
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

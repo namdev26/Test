@@ -1,0 +1,227 @@
+openapi: 3.0.3
+info:
+  title: Seat Availability Service API
+  description: |
+    Quản lý trạng thái ghế theo suất chiếu.
+    Hỗ trợ kiểm tra ghế, giữ ghế theo TTL, mở ghế và đánh dấu ghế đã bán.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5003
+    description: Local Docker
+
+tags:
+  - name: seats
+    description: Trạng thái ghế theo suất chiếu
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service đang hoạt động
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /showtimes/{showtimeId}/seats:
+    get:
+      tags: [seats]
+      summary: Lấy sơ đồ ghế và trạng thái ghế
+      parameters:
+        - $ref: "#/components/parameters/ShowtimeId"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeatMapResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /showtimes/{showtimeId}/seats/{seatId}/hold:
+    post:
+      tags: [seats]
+      summary: Giữ ghế tạm thời
+      parameters:
+        - $ref: "#/components/parameters/ShowtimeId"
+        - $ref: "#/components/parameters/SeatId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HoldSeatRequest"
+      responses:
+        "200":
+          description: Giữ ghế thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeatActionResponse"
+        "409":
+          description: Ghế không khả dụng
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /showtimes/{showtimeId}/seats/{seatId}/release:
+    post:
+      tags: [seats]
+      summary: Mở lại ghế
+      parameters:
+        - $ref: "#/components/parameters/ShowtimeId"
+        - $ref: "#/components/parameters/SeatId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeatBookingRequest"
+      responses:
+        "200":
+          description: Mở ghế thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeatActionResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /showtimes/{showtimeId}/seats/{seatId}/sold:
+    post:
+      tags: [seats]
+      summary: Đánh dấu ghế đã bán
+      parameters:
+        - $ref: "#/components/parameters/ShowtimeId"
+        - $ref: "#/components/parameters/SeatId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SeatBookingRequest"
+      responses:
+        "200":
+          description: Cập nhật SOLD thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SeatActionResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  parameters:
+    ShowtimeId:
+      name: showtimeId
+      in: path
+      required: true
+      schema:
+        type: integer
+    SeatId:
+      name: seatId
+      in: path
+      required: true
+      schema:
+        type: integer
+
+  schemas:
+    HoldSeatRequest:
+      type: object
+      required: [booking_id, ttl_seconds]
+      properties:
+        booking_id:
+          type: integer
+          example: 201
+        ttl_seconds:
+          type: integer
+          example: 180
+
+    SeatBookingRequest:
+      type: object
+      required: [booking_id]
+      properties:
+        booking_id:
+          type: integer
+          example: 201
+
+    SeatActionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            showtime_id:
+              type: integer
+              example: 3001
+            seat_id:
+              type: integer
+              example: 42
+            status:
+              type: string
+              example: HELD
+
+    SeatMapResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              seat_id:
+                type: integer
+              row:
+                type: string
+              number:
+                type: integer
+              status:
+                type: string
+                enum: [AVAILABLE, HELD, SOLD]
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+  responses:
+    NotFound:
+      description: Không tìm thấy dữ liệu
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Lỗi server nội bộ
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

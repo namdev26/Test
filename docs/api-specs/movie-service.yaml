@@ -1,0 +1,192 @@
+openapi: 3.0.3
+info:
+  title: Movie Service API
+  description: |
+    Quản lý thông tin phim, rạp và lịch chiếu.
+    Cung cấp API cho client và Ticket Booking Service tra cứu dữ liệu suất chiếu.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5002
+    description: Local Docker
+
+tags:
+  - name: movies
+    description: Dữ liệu phim và lịch chiếu
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service đang hoạt động
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /movies:
+    get:
+      tags: [movies]
+      summary: Lấy danh sách phim
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [NOW_SHOWING, COMING_SOON]
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MovieListResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /movies/{id}:
+    get:
+      tags: [movies]
+      summary: Lấy chi tiết phim
+      parameters:
+        - $ref: "#/components/parameters/MovieId"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MovieResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /movies/{id}/showtimes:
+    get:
+      tags: [movies]
+      summary: Lấy lịch chiếu theo phim
+      parameters:
+        - $ref: "#/components/parameters/MovieId"
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowtimeListResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  parameters:
+    MovieId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+
+  schemas:
+    Movie:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Avengers: Endgame
+        duration_minutes:
+          type: integer
+          example: 181
+        rating:
+          type: string
+          example: T13
+        status:
+          type: string
+          example: NOW_SHOWING
+
+    MovieListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Movie"
+
+    MovieResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Movie"
+
+    Showtime:
+      type: object
+      properties:
+        showtime_id:
+          type: integer
+          example: 3001
+        theater_name:
+          type: string
+          example: CGV Vincom
+        room_name:
+          type: string
+          example: Room 05
+        start_time:
+          type: string
+          format: date-time
+        price:
+          type: integer
+          example: 95000
+
+    ShowtimeListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Showtime"
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+  responses:
+    NotFound:
+      description: Không tìm thấy dữ liệu
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Lỗi server nội bộ
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

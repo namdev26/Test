@@ -1,0 +1,162 @@
+openapi: 3.0.3
+info:
+  title: Notification Service API
+  description: |
+    Gửi thông báo email bất đồng bộ.
+    Được gọi sau khi booking thành công hoặc thất bại.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:5006
+    description: Local Docker
+
+tags:
+  - name: notifications
+    description: Gửi thông báo email
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service đang hoạt động
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /notifications/email:
+    post:
+      tags: [notifications]
+      summary: Gửi email thông báo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendEmailRequest"
+      responses:
+        "202":
+          description: Chấp nhận xử lý async
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationAcceptedResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /notifications/{id}:
+    get:
+      tags: [notifications]
+      summary: Lấy trạng thái gửi email
+      parameters:
+        - $ref: "#/components/parameters/NotificationId"
+      responses:
+        "200":
+          description: Thành công
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationStatusResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  parameters:
+    NotificationId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        example: ntf_20260417_001
+
+  schemas:
+    SendEmailRequest:
+      type: object
+      required: [to, subject, template]
+      properties:
+        to:
+          type: string
+          format: email
+          example: a@gmail.com
+        subject:
+          type: string
+          example: Xac nhan dat ve thanh cong
+        template:
+          type: string
+          example: booking-success
+        data:
+          type: object
+          additionalProperties: true
+
+    NotificationAcceptedResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            notification_id:
+              type: string
+              example: ntf_20260417_001
+            status:
+              type: string
+              example: QUEUED
+
+    NotificationStatusResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            notification_id:
+              type: string
+            status:
+              type: string
+              enum: [QUEUED, SENT, FAILED]
+            sent_at:
+              type: string
+              format: date-time
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+  responses:
+    BadRequest:
+      description: Dữ liệu đầu vào không hợp lệ
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Không tìm thấy dữ liệu
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Lỗi server nội bộ
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"

@@ -1,0 +1,97 @@
+# Docker Compose — Multi-container orchestration
+# Run: docker compose up --build
+# Docs: https://docs.docker.com/compose/
+
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - gateway
+    networks:
+      - app-network
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "${GATEWAY_PORT:-8081}:8000"
+    depends_on:
+      - customer-service
+      - movie-service
+      - seat-availability-service
+      - ticket-booking-service
+      - payment-service
+      - notification-service
+    networks:
+      - app-network
+
+  customer-service:
+    build: ./services/customer-service
+    ports:
+      - "${CUSTOMER_SERVICE_PORT:-5001}:5000"
+    env_file:
+      - .env
+    networks:
+      - app-network
+
+  movie-service:
+    build: ./services/movie-service
+    ports:
+      - "${MOVIE_SERVICE_PORT:-5002}:5000"
+    env_file:
+      - .env
+    networks:
+      - app-network
+
+  seat-availability-service:
+    build: ./services/seat-availability-service
+    ports:
+      - "${SEAT_SERVICE_PORT:-5003}:5000"
+    env_file:
+      - .env
+    networks:
+      - app-network
+
+  ticket-booking-service:
+    build: ./services/ticket-booking-service
+    ports:
+      - "${BOOKING_SERVICE_PORT:-5004}:5000"
+    env_file:
+      - .env
+    environment:
+      - CUSTOMER_SERVICE_URL=http://customer-service:5000
+      - SEAT_SERVICE_URL=http://seat-availability-service:5000
+    depends_on:
+      - customer-service
+      - seat-availability-service
+    networks:
+      - app-network
+
+  payment-service:
+    build: ./services/payment-service
+    ports:
+      - "${PAYMENT_SERVICE_PORT:-5005}:5000"
+    env_file:
+      - .env
+    environment:
+      - BOOKING_SERVICE_URL=http://ticket-booking-service:5000
+      - NOTIFICATION_SERVICE_URL=http://notification-service:5000
+    depends_on:
+      - ticket-booking-service
+      - notification-service
+    networks:
+      - app-network
+
+  notification-service:
+    build: ./services/notification-service
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT:-5006}:5000"
+    env_file:
+      - .env
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
