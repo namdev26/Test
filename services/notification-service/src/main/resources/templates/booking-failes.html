@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Thanh toán thất bại</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #374151, #1f2937); padding: 40px; text-align: center; color: white; }
+    .header h1 { margin: 0; font-size: 28px; }
+    .body { padding: 32px; }
+    .alert { background: #fff3cd; border-left: 4px solid #f59e0b; padding: 16px; border-radius: 4px; margin: 20px 0; }
+    .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+    .footer { background: #222; color: #aaa; text-align: center; padding: 20px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>❌ Thanh toán thất bại</h1>
+      <p>Đơn đặt vé của bạn chưa được xác nhận</p>
+    </div>
+    <div class="body">
+      <p>Xin chào,</p>
+      <p>Rất tiếc, giao dịch thanh toán cho đơn hàng của bạn đã thất bại.</p>
+      <div class="alert">
+        <strong>⚠ Lưu ý:</strong> Các ghế bạn đã chọn đã được giải phóng và có thể được đặt bởi người khác.
+      </div>
+      <div class="info-row"><span>Mã booking:</span><span th:text="${data?.bookingId}">#201</span></div>
+      <p style="margin-top: 20px;">Bạn có thể thử đặt vé lại. Nếu cần hỗ trợ, vui lòng liên hệ chúng tôi.</p>
+    </div>
+    <div class="footer">CineBook · Hệ thống đặt vé xem phim trực tuyến</div>
+  </div>
+</body>
+</html>

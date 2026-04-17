@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Đặt vé thành công</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #e50914, #c20010); padding: 40px; text-align: center; color: white; }
+    .header h1 { margin: 0; font-size: 28px; }
+    .body { padding: 32px; }
+    .ticket-code { background: #f8f8f8; border: 2px dashed #e50914; border-radius: 8px; padding: 20px; text-align: center; font-size: 28px; font-weight: bold; letter-spacing: 4px; color: #e50914; font-family: monospace; margin: 20px 0; }
+    .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+    .footer { background: #222; color: #aaa; text-align: center; padding: 20px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎉 Đặt vé thành công!</h1>
+      <p>Cảm ơn bạn đã sử dụng CineBook</p>
+    </div>
+    <div class="body">
+      <p>Xin chào,</p>
+      <p>Đơn đặt vé của bạn đã được xác nhận thành công. Vui lòng xuất trình mã vé bên dưới tại rạp:</p>
+      <div class="ticket-code" th:text="${data?.ticketCode}">MOV-2026-201</div>
+      <div class="info-row"><span>Mã booking:</span><span th:text="${data?.bookingId}">#201</span></div>
+      <p style="margin-top:20px; color:#666; font-size:13px;">Chúc bạn xem phim vui vẻ! 🍿</p>
+    </div>
+    <div class="footer">CineBook · Hệ thống đặt vé xem phim trực tuyến</div>
+  </div>
+</body>
+</html>

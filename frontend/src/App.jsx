@@ -1,10 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
+import "./App.css";
 import { apiClient, createIdempotencyKey } from "./api";
 import { useCountdown } from "./hooks/useCountdown";
-import ConcertListPage from "./pages/ConcertListPage";
-import SeatMapPage from "./pages/SeatMapPage";
-import PaymentPage from "./pages/PaymentPage";
-import SuccessPage from "./pages/SuccessPage";
+import MovieListPage from "./pages/ConcertListPage";
+import ShowtimeSeatPage from "./pages/SeatMapPage";
+import BookingPaymentPage from "./pages/PaymentPage";
+import TicketResultPage from "./pages/SuccessPage";
+
+const STEPS = [
+  { label: "Chọn phim" },
+  { label: "Suất chiếu & Ghế" },
+  { label: "Đặt vé & Thanh toán" },
+  { label: "Hoàn tất" },
+];
+
+function getStep(state) {
+  if (state.resultTicket) return 3;
+  if (state.booking) return 2;
+  if (state.selectedMovieId) return 1;
+  return 0;
+}
 
 export default function App() {
   const [movies, setMovies] = useState([]);
@@ -21,32 +36,41 @@ export default function App() {
   const [customer, setCustomer] = useState({
     name: "Nguyen Van A",
     email: "a@gmail.com",
-    phone: "0901234567"
+    phone: "0901234567",
   });
 
   const [card, setCard] = useState({
     card_number: "4111111111111111",
     card_expiry: "12/27",
     card_cvv: "123",
-    card_holder: "NGUYEN VAN A"
+    card_holder: "NGUYEN VAN A",
   });
 
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  const [statusMsg, setStatusMsg] = useState("Sẵn sàng.");
+  const [isError, setIsError] = useState(false);
   const { mmss } = useCountdown(180, Boolean(booking) && !payment);
+
+  const currentStep = getStep({ resultTicket, booking, selectedMovieId });
 
   useEffect(() => {
     loadMovies();
   }, []);
 
+  function setStatus(msg, error = false) {
+    setStatusMsg(msg);
+    setIsError(error);
+  }
+
   async function loadMovies() {
     setLoading(true);
+    setStatus("Đang tải danh sách phim...");
     try {
       const res = await apiClient.getMovies();
       setMovies(res.data || []);
-      setMessage("Loaded movies.");
+      setStatus("Sẵn sàng.");
     } catch (err) {
-      setMessage(err.message);
+      setStatus(err.message, true);
     } finally {
       setLoading(false);
     }
@@ -58,12 +82,16 @@ export default function App() {
     setSelectedShowtimeId(null);
     setSelectedSeatIds([]);
     setSeats([]);
+    setBooking(null);
+    setPayment(null);
+    setResultTicket(null);
+    setStatus("Đang tải lịch chiếu...");
     try {
       const res = await apiClient.getShowtimesByMovie(movieId);
       setShowtimes(res.data || []);
-      setMessage("Loaded showtimes.");
+      setStatus("Đã tải lịch chiếu.");
     } catch (err) {
-      setMessage(err.message);
+      setStatus(err.message, true);
     } finally {
       setLoading(false);
     }
@@ -73,12 +101,13 @@ export default function App() {
     setLoading(true);
     setSelectedShowtimeId(showtimeId);
     setSelectedSeatIds([]);
+    setStatus("Đang tải sơ đồ ghế...");
     try {
       const res = await apiClient.getSeatsByShowtime(showtimeId);
       setSeats(res.data || []);
-      setMessage("Loaded seats.");
+      setStatus("Đã tải sơ đồ ghế.");
     } catch (err) {
-      setMessage(err.message);
+      setStatus(err.message, true);
     } finally {
       setLoading(false);
     }
@@ -86,25 +115,35 @@ export default function App() {
 
   async function createBooking() {
     if (!selectedShowtimeId || selectedSeatIds.length === 0) {
-      setMessage("Select showtime and at least one seat.");
+      setStatus("Vui lòng chọn suất chiếu và ít nhất 1 ghế.", true);
       return;
     }
     setLoading(true);
     setResultTicket(null);
     setPayment(null);
+    setStatus("Đang tạo booking và giữ ghế...");
     try {
       const res = await apiClient.createBooking({
         idempotencyKey: createIdempotencyKey(),
         payload: {
           showtime_id: selectedShowtimeId,
           seat_ids: selectedSeatIds,
-          customer
-        }
+          customer,
+        },
       });
-      setBooking(res.data);
-      setMessage("Booking created. Proceed to payment.");
+      // Java returns camelCase: bookingId, totalAmount — normalize to snake_case for downstream use
+      const raw = res.data;
+      const normalized = {
+        ...raw,
+        booking_id: raw.bookingId ?? raw.booking_id,
+        total_amount: raw.totalAmount ?? raw.total_amount,
+        seat_ids: raw.seatIds ?? raw.seat_ids,
+        showtime_id: raw.showtimeId ?? raw.showtime_id,
+      };
+      setBooking(normalized);
+      setStatus("Booking tạo thành công. Ghế đang được giữ — vui lòng thanh toán.");
     } catch (err) {
-      setMessage(err.message);
+      setStatus(err.message, true);
     } finally {
       setLoading(false);
     }
@@ -112,50 +151,69 @@ export default function App() {
 
   async function startPayment() {
     if (!booking) {
-      setMessage("Create booking first.");
+      setStatus("Vui lòng tạo booking trước.", true);
       return;
     }
     setLoading(true);
+    setStatus("Đang tạo giao dịch thanh toán...");
     try {
       const res = await apiClient.createPayment({
         idempotencyKey: createIdempotencyKey(),
         payload: {
           booking_id: booking.booking_id,
           amount: booking.total_amount,
-          ...card
-        }
+          card_number: card.card_number,
+          card_expiry: card.card_expiry,
+          card_cvv: card.card_cvv,
+          card_holder: card.card_holder,
+        },
       });
-      setPayment(res.data);
-      setMessage("Payment transaction created. Simulate gateway callback.");
+      // normalize payment fields
+      const p = res.data;
+      setPayment({
+        ...p,
+        gateway_ref: p.gatewayRef ?? p.gateway_ref,
+        payment_id: p.paymentId ?? p.payment_id,
+      });
+      setStatus("Giao dịch đã tạo. Vui lòng xác nhận thanh toán.");
     } catch (err) {
-      setMessage(err.message);
+      setStatus(err.message, true);
     } finally {
       setLoading(false);
     }
   }
 
-  async function callback(status) {
+  async function handleCallback(status) {
     if (!payment) {
-      setMessage("Create payment first.");
+      setStatus("Chưa có giao dịch.", true);
       return;
     }
     setLoading(true);
+    setStatus(status === "SUCCESS" ? "Đang xác nhận thanh toán..." : "Đang hủy giao dịch...");
     try {
       await apiClient.callbackPayment({
-          gateway_ref: payment.gateway_ref,
-          status,
-          booking_id: booking.booking_id
+        gateway_ref: payment.gateway_ref,
+        status,
+        booking_id: booking.booking_id,
       });
       if (status === "SUCCESS") {
         const ticket = await apiClient.getBookingTicket(booking.booking_id);
         setResultTicket(ticket.data);
-        setMessage("Payment success. Ticket issued.");
+        setStatus("🎉 Thanh toán thành công! Vé đã được xuất.");
       } else {
         setResultTicket(null);
-        setMessage("Payment failed. Seats released.");
+        setBooking(null);
+        setPayment(null);
+        setSeats((prev) =>
+          prev.map((s) => {
+            const sId = s.seatId ?? s.seat_id;
+            return selectedSeatIds.includes(sId) ? { ...s, status: "AVAILABLE" } : s;
+          })
+        );
+        setStatus("Thanh toán thất bại. Ghế đã được giải phóng.", true);
       }
     } catch (err) {
-      setMessage(err.message);
+      setStatus(err.message, true);
     } finally {
       setLoading(false);
     }
@@ -166,47 +224,96 @@ export default function App() {
     [movies, selectedMovieId]
   );
 
+  // Java returns camelCase: showtimeId; legacy snake_case: showtime_id
+  const selectedShowtime = useMemo(
+    () => showtimes.find((s) => (s.showtimeId ?? s.showtime_id) === selectedShowtimeId),
+    [showtimes, selectedShowtimeId]
+  );
+
   return (
-    <div className="container">
-      <h1>Movie Ticket Booking</h1>
-      <p className="muted">API: {apiClient.baseUrl}</p>
-      <p className="status">{loading ? "Loading..." : message}</p>
+    <div className="app">
+      {/* Navbar */}
+      <nav className="navbar">
+        <div className="navbar-brand">
+          <div className="navbar-logo">🎬</div>
+          <div className="navbar-name">Cine<span>Book</span></div>
+        </div>
+        <div className={`navbar-status ${loading ? 'loading' : isError ? 'error' : ''}`}>
+          {loading ? '⏳ ' : isError ? '⚠ ' : '✓ '}{statusMsg}
+        </div>
+      </nav>
 
-      <ConcertListPage
-        movies={movies}
-        selectedMovieId={selectedMovieId}
-        onReload={loadMovies}
-        onSelectMovie={loadShowtimes}
-      />
+      {/* Stepper */}
+      <div className="stepper-bar">
+        <div className="stepper">
+          {STEPS.map((step, i) => (
+            <div
+              key={i}
+              className={`step ${i === currentStep ? 'active' : i < currentStep ? 'done' : ''}`}
+            >
+              <div className="step-num">
+                {i < currentStep ? '✓' : i + 1}
+              </div>
+              <div className="step-label">{step.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
 
-      <SeatMapPage
-        currentMovieTitle={currentMovie?.title}
-        showtimes={showtimes}
-        selectedShowtimeId={selectedShowtimeId}
-        onSelectShowtime={loadSeats}
-        seats={seats}
-        selectedSeatIds={selectedSeatIds}
-        onToggleSeat={(seatId) =>
-          setSelectedSeatIds((prev) =>
-            prev.includes(seatId) ? prev.filter((id) => id !== seatId) : [...prev, seatId]
-          )
-        }
-      />
+      {/* Main content */}
+      <main className="main-content">
+        {/* Step 1: Movies */}
+        <MovieListPage
+          movies={movies}
+          selectedMovieId={selectedMovieId}
+          onReload={loadMovies}
+          onSelectMovie={loadShowtimes}
+        />
 
-      <PaymentPage
-        customer={customer}
-        card={card}
-        booking={booking}
-        payment={payment}
-        countdown={mmss}
-        onCustomerChange={setCustomer}
-        onCardChange={setCard}
-        onCreateBooking={createBooking}
-        onCreatePayment={startPayment}
-        onCallback={callback}
-      />
+        {/* Steps 2 & 3: Showtimes + Seat map */}
+        {selectedMovieId && (
+          <ShowtimeSeatPage
+            currentMovieTitle={currentMovie?.title}
+            showtimes={showtimes}
+            selectedShowtimeId={selectedShowtimeId}
+            onSelectShowtime={loadSeats}
+            seats={seats}
+            selectedSeatIds={selectedSeatIds}
+            onToggleSeat={(seatId) =>
+              setSelectedSeatIds((prev) =>
+                prev.includes(seatId)
+                  ? prev.filter((id) => id !== seatId)
+                  : [...prev, seatId]
+              )
+            }
+            selectedShowtime={selectedShowtime}
+          />
+        )}
 
-      <SuccessPage ticket={resultTicket} />
+        {/* Steps 4 & 5: Booking + Payment */}
+        {selectedShowtimeId && (
+          <BookingPaymentPage
+            customer={customer}
+            card={card}
+            booking={booking}
+            payment={payment}
+            countdown={mmss}
+            onCustomerChange={setCustomer}
+            onCardChange={setCard}
+            onCreateBooking={createBooking}
+            onCreatePayment={startPayment}
+            onCallback={handleCallback}
+            selectedSeatIds={selectedSeatIds}
+            selectedShowtime={selectedShowtime}
+            currentMovieTitle={currentMovie?.title}
+          />
+        )}
+
+        {/* Step 6: Ticket */}
+        {resultTicket && (
+          <TicketResultPage ticket={resultTicket} booking={booking} />
+        )}
+      </main>
     </div>
   );
 }
